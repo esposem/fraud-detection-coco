@@ -1,0 +1,55 @@
+= Prepare the cluster and install the OSC operator
+
+There needs to be some preparation in order to be ready to use confidential containers.
+
+. First of all, we need an ARO cluster version to be at least 4.15.34. Because this cluster version is older, we need to upgrade it.
+. Then, we need to install the OSC operator to be at least v1.7.0 and configure it
+. After that, install the Trustee operator to perform attestation
+. To conclude, make sure OSC knows the Trustee route, so that every confidential container will connect to it to perform attestation and get secrets back.
+
+NOTE: In this lab, the Trustee operator will stay in the same Openshift cluster. In production, Trustee will run in a secure environment/other OCP cluster.
+
+Run this script to perform all the above steps (the whole process should take in total approx. 2 hours):
+
+IMPORTANT: make sure that you run the commands shown in the previous page (`az login` and `export ARO_RESOURCE_GROUP`)!
+
+[source,sh,role=execute]
+----
+oc adm upgrade --allow-explicit-upgrade --force=true --to-image=quay.io/openshift-release-dev/ocp-release:$ARO_NEW_CLUSTER_VERSION-x86_64
+oc wait --for=condition=Progressing=false clusterversion/version --timeout=-1s
+
+git clone -b aro_workshop https://gitlab.com/eesposit/peer-pods-scripts.git
+cd peer-pods-scripts
+
+echo "export ARO_RESOURCE_GROUP=${ARO_RESOURCE_GROUP}" >> configs/aro_workshop.conf
+./install_peerpods.sh -o -p aro
+
+./install_trustee.sh
+
+./connect_trustee_osc.sh
+----
+
+The expected output should end like this:
+[source,texinfo,subs="attributes"]
+----
+#### Testing if it works...
+pod/hello-debug created
+service/hello-debug-service created
+Waiting that hello debug pod is running... (might take a while)
+pod/hello-debug condition met
+Completed!
+NAME          READY   STATUS    RESTARTS   AGE
+hello-debug   1/1     Running   0          2m3s
+
+Trustee_Secret_Retrieved
+----
+
+What this log means is that we successfully managed to:
+* Install the OSC operator and configure it for confidential containers
+* Install the Trustee operator, configure it with a secret called `Trustee_Secret_Retrieved`
+* Setup the OSC operator to connect with Trustee
+* Create a `hello-debug` confidential container, and perform attestation to fetch the secret from Trustee
+
+NOTE: in this example, `hello-debug` is a debug container so you will be able to log into if using `oc exec`. However, in production confidential containers it is not possible to acces to container logs, exect into it or even ssh into the confidential VM underneath.
+
+Let's run now the proper fraud detection demo, and extend it with confidential containers!
